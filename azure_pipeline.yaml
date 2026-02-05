@@ -1,0 +1,64 @@
+# Gatilho do pipeline
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - 'app/*'
+
+variables:
+  gcpServiceAccountKey: 'azure-devops-key.json'
+  gcpProject: 'i-atvos'
+  gcpRegion: 'us-east1'
+  gcpRepository: 'logistics-price-etanol'
+
+  gcpCloudRunServiceName: 'streamlit'
+  imageNameBack: '$(gcpRegion)-docker.pkg.dev/$(gcpProject)/$(gcpRepository)/$(gcpCloudRunServiceName):$(Build.BuildId)'
+
+  gcrServiceConnection: 'logistics_price_etanol'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: DeployStreamlit
+  displayName: 'Build & Deploy Streamlit Application'
+  jobs:
+  - job: BackendJob
+    displayName: 'Streamlit CI/CD'
+    steps:
+    # Download the service key
+    - task: DownloadSecureFile@1
+      name: gcpKey
+      displayName: 'Download GCP Service Account Key'
+      inputs:
+        secureFile: '$(gcpServiceAccountKey)'
+
+    # Build and Push Docker image of streamlit container
+    - task: Docker@2
+      displayName: 'Build and Push Streamlit Image'
+      inputs:
+        command: buildAndPush
+        repository: '$(gcpProject)/$(gcpRepository)/$(gcpCloudRunServiceName)'
+        dockerfile: '$(Build.SourcesDirectory)/Dockerfile' 
+        containerRegistry: '$(gcrServiceConnection)'
+        tags: '$(Build.BuildId)'
+
+    # Deploy streamlit container
+    - task: Bash@3
+      displayName: 'Deploy Streamlit Container to Cloud Run'
+      inputs:
+        targetType: 'inline'
+        script: |
+          curl -sSL https://sdk.cloud.google.com | bash > /dev/null;
+          source /home/vsts/google-cloud-sdk/path.bash.inc
+          gcloud auth activate-service-account --key-file $(gcpKey.secureFilePath)
+          gcloud config set project $(gcpProject)
+
+          echo "Deploying Streamlit Container to Google Cloud Run..."
+          gcloud run deploy $(gcpCloudRunServiceName) \
+            --image $(imageNameBack) \
+            --region $(gcpRegion) \
+            --platform managed \
+            --quiet
