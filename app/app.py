@@ -6,10 +6,9 @@ usando modelo RandomForest treinado.
 Regras implementadas (conforme alinhado):
 1) TODOS os fatores variam apenas no intervalo de multiplicador [0.5, 1.5] em relação ao FACTORS_BASE.
 2) Fatores "apenas negativos" (penalizadores): valor final nunca pode ser > 0 (pode ser 0).
-3) Fatores "apenas positivos" (ações): valor final nunca pode ser < 0 (pode ser 0).
-4) Removido INDETERMINADO e removido bucket OUTROS do waterfall.
-5) Labels do waterfall padronizados e simplificados.
-6) Correção do KPI de gap: agora é (Cascade - Modelo).
+# 3) Fatores "apenas positivos" (ações): valor final nunca pode ser < 0 (pode ser 0).4) Removido INDETERMINADO e removido bucket OUTROS do waterfall.
+# 5) Labels do waterfall padronizados e simplificados.
+# 6) Correção do KPI de gap: agora é (Cascade - Modelo).
 """
 
 from pathlib import Path
@@ -364,7 +363,16 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 # FUNÇÕES (MODELO / BASELINES)
 # =========================
 def load_model():
-    model_path = Path("tch_rf_bundle.joblib")
+    # Procura o modelo na raiz do projeto ou no diretório do script
+    base_dirs = [Path.cwd(), Path(__file__).parent, Path(__file__).parent.parent]
+    model_path = None
+    for d in base_dirs:
+        p = d / "tch_rf_bundle.joblib"
+        if p.exists():
+            model_path = p
+            break
+    if model_path is None:
+        model_path = Path("tch_rf_bundle.joblib")
     if not model_path.exists():
         st.error(f"Arquivo do modelo não encontrado: {model_path}")
         st.info("Coloque o arquivo 'tch_rf_bundle.joblib' no diretório do projeto.")
@@ -401,8 +409,21 @@ def load_model():
 
 @st.cache_data
 def load_baseline_data():
-    parquet_path = Path("baseline_data.parquet")
-    csv_path = Path("baseline_data.csv")
+    # Procura os dados na raiz do projeto ou no diretório do script
+    base_dirs = [Path.cwd(), Path(__file__).parent, Path(__file__).parent.parent]
+    parquet_path = csv_path = None
+    for d in base_dirs:
+        if (d / "baseline_data.parquet").exists():
+            parquet_path = d / "baseline_data.parquet"
+            break
+    for d in base_dirs:
+        if (d / "baseline_data.csv").exists():
+            csv_path = d / "baseline_data.csv"
+            break
+    if parquet_path is None:
+        parquet_path = Path("baseline_data.parquet")
+    if csv_path is None:
+        csv_path = Path("baseline_data.csv")
 
     if parquet_path.exists():
         df = pd.read_parquet(parquet_path)
@@ -894,7 +915,8 @@ column_mapping = get_column_mapping(df_baseline)
 col_logo, col_title = st.columns([1, 4])
 
 with col_logo:
-    st.image("logo_atvos.png", width=120)
+    logo_path = Path(__file__).parent / "logo_atvos.png"
+    st.image(str(logo_path), width=120)
 
 with col_title:
     st.markdown(
